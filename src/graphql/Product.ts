@@ -1,5 +1,7 @@
 import {extendType, floatArg, nonNull, objectType, stringArg} from "nexus";
 import {Product} from "../entities/Product";
+import {Context} from "../types/Context";
+import {User} from "../entities/User";
 
 
 export const ProductType = objectType({
@@ -8,6 +10,13 @@ export const ProductType = objectType({
         t.nonNull.int("id")
         t.nonNull.string("name")
         t.nonNull.float("price")
+        t.nonNull.int("craeatorId")
+        t.field("createdBy", {
+            type: "User",
+            resolve(parent, _args, _context, _info): Promise<User | null> {
+                return User.findOne({where: {id: parent.creatorId}})
+            }
+        })
     }
 });
 
@@ -29,7 +38,7 @@ export const ProductsQuery = extendType({
     definition(t) {
         t.nonNull.list.nonNull.field("products", {
             type: "Product",
-            resolve(_parent, _args, _context, _info) : Promise<Product[]>{
+            resolve(_parent, _args, _context: Context, _info) : Promise<Product[]>{
                 return Product.find()
             }
         })
@@ -45,9 +54,13 @@ export const CreateProductMutation = extendType({
                 name: nonNull(stringArg()),
                 price: nonNull(floatArg())
             },
-            resolve(_parent, _args, _context, _info): Promise<Product> {
+            resolve(_parent, _args, context: Context, _info): Promise<Product> {
                 const {name, price} = _args;
-                return Product.create({name, price}).save()
+                const {userId} = context
+                if(!userId) {
+                    throw new Error("Can't create product without logging in")
+                }
+                return Product.create({name, price, creatorId: userId}).save()
             }
         })
     }
